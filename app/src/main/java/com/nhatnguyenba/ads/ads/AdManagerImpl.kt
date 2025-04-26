@@ -1,9 +1,16 @@
 package com.nhatnguyenba.ads.ads
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.TextView
+import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
@@ -11,6 +18,7 @@ import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.gms.ads.nativead.MediaView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 import com.google.android.gms.ads.rewarded.RewardedAd
@@ -40,6 +48,7 @@ class AdManagerImpl(
         if (bannerAdView == null) {
             setupBanner()
         }
+        bannerConfig.container.visibility = View.VISIBLE
         bannerConfig.container.removeView(bannerAdView)
         bannerConfig.container.addView(bannerAdView)
     }
@@ -48,6 +57,7 @@ class AdManagerImpl(
         val bannerConfig = config as AdConfig.BannerConfig
         bannerAdView?.let {
             bannerConfig.container.removeView(it)
+            bannerConfig.container.visibility = View.GONE
             it.destroy()
             bannerAdView = null
         }
@@ -64,15 +74,24 @@ class AdManagerImpl(
             object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(loadedAd: InterstitialAd) {
                     interstitialAd = loadedAd
+                    interstitialAd?.show(context as Activity)
                 }
             })
     }
 
     private fun showInterstitial() {
-        interstitialAd?.show(context as Activity)
+        loadInterstitial()
         interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
-                loadInterstitial() // Reload after dismiss
+                // Called when ad is dismissed.
+                Log.d("NHAT", "Ad dismissed fullscreen content.")
+                interstitialAd = null
+            }
+
+            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                // Called when ad fails to show.
+                Log.e("NHAT", "Ad failed to show fullscreen content.")
+                interstitialAd = null
             }
         }
     }
@@ -85,9 +104,11 @@ class AdManagerImpl(
     // Region: Native Ad Implementation
     private var nativeAd: NativeAd? = null
     private var nativeAdView: NativeAdView? = null
+    private var nativeContainer: ViewGroup? = null
 
     private fun setupNativeAd() {
         val nativeConfig = config as AdConfig.NativeConfig
+        nativeContainer = nativeConfig.container
         val adLoader = AdLoader.Builder(context, nativeConfig.adUnitId)
             .forNativeAd { ad ->
                 nativeAd = ad
@@ -98,28 +119,60 @@ class AdManagerImpl(
         adLoader.loadAd(AdRequest.Builder().build())
     }
 
+    @SuppressLint("CutPasteId")
     private fun inflateNativeAdView(ad: NativeAd, config: AdConfig.NativeConfig) {
         nativeAdView = LayoutInflater.from(context)
             .inflate(config.templateId, config.container, false) as NativeAdView
 
         // Bind ad data to views
-        nativeAdView?.headlineView = nativeAdView?.findViewById(R.id.ad_headline)
-        nativeAdView?.bodyView = nativeAdView?.findViewById(R.id.ad_body)
-        // ... bind other views
+        nativeAdView?.apply {
+            val adAppIcon = findViewById<ImageView>(R.id.ad_app_icon)
+            val adHeadline = findViewById<TextView>(R.id.ad_headline)
+            val adBody = findViewById<TextView>(R.id.ad_body)
+            val adAdvertiser = findViewById<TextView>(R.id.ad_advertiser)
+            val adMedia = findViewById<MediaView>(R.id.ad_media)
+            val adRating = findViewById<TextView>(R.id.ad_stars)
+            val adPrice = findViewById<TextView>(R.id.ad_price)
+//            var adStore = findViewById<TextView>(R.id.ad_store)
+            val adCallToAction = findViewById<Button>(R.id.ad_call_to_action)
+//            var adRatingBar = findViewById<RatingBar>(R.id.ad_rating_bar)
+
+            adHeadline.text = ad.headline
+            adBody.text = ad.body
+            adAdvertiser.text = ad.advertiser
+            adRating.text = ad.starRating.toString()
+            adPrice.text = ad.price
+//            adStore.text = ad.store
+            adCallToAction.text = ad.callToAction
+//            adRatingBar.rating = ad.starRating.toFloat()
+            adMedia.mediaContent = ad.mediaContent
+            adAppIcon.setImageDrawable(ad.icon?.drawable)
+
+            iconView = adAppIcon
+            callToActionView = adCallToAction
+            mediaView = adMedia
+            starRatingView = adRating
+            priceView = adPrice
+            headlineView = adHeadline
+            bodyView = adBody
+            advertiserView = adAdvertiser
+        }
 
         nativeAdView?.setNativeAd(ad)
+        config.container.removeAllViews()
         config.container.addView(nativeAdView)
     }
 
     private fun showNative() {
         if (nativeAd == null) {
             setupNativeAd()
-        } else {
-            nativeAdView?.visibility = View.VISIBLE
         }
+        nativeContainer?.visibility = View.VISIBLE
+        nativeAdView?.visibility = View.VISIBLE
     }
 
     private fun hideNative() {
+        nativeContainer?.visibility = View.GONE
         nativeAdView?.visibility = View.GONE
         nativeAd?.destroy()
         nativeAd = null
@@ -137,22 +190,21 @@ class AdManagerImpl(
             object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
                     rewardedAd = ad
+                    rewardedAd?.show(context as Activity) { reward ->
+                        config.onRewardEarned()
+                        isRewarded = true
+                    }
                 }
             })
     }
 
     private fun showRewarded() {
-        rewardedAd?.show(context as Activity) { reward ->
-            (config as AdConfig.RewardedConfig).onRewardEarned()
-            isRewarded = true
-        }
-
+        loadRewarded()
         rewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 if (!isRewarded) {
                     // Handle case when user didn't earn reward
                 }
-                loadRewarded() // Reload after dismiss
             }
         }
     }
@@ -174,6 +226,7 @@ class AdManagerImpl(
             object : AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: AppOpenAd) {
                     appOpenAd = ad
+                    appOpenAd?.show(context as Activity)
                 }
             })
     }
@@ -181,11 +234,10 @@ class AdManagerImpl(
     private fun showAppOpen() {
         if (isShowingAppOpen) return
 
-        appOpenAd?.show(context as Activity)
+        loadAppOpen()
         appOpenAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
                 isShowingAppOpen = false
-                loadAppOpen() // Reload after dismiss
             }
         }
         isShowingAppOpen = true

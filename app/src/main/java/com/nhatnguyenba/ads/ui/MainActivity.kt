@@ -7,7 +7,7 @@ import com.google.android.gms.ads.AdSize
 import com.google.android.material.button.MaterialButton
 import com.nhatnguyenba.ads.R
 import com.nhatnguyenba.ads.ads.AdConfig
-import com.nhatnguyenba.ads.ads.AdFactory
+import com.nhatnguyenba.ads.ads.AdManagerFactory
 import com.nhatnguyenba.ads.ads.AdManager
 import com.nhatnguyenba.ads.ads.AdType
 
@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize all ad managers
         adManagers = mapOf(
-            AdType.BANNER to AdFactory.create(
+            AdType.BANNER to AdManagerFactory.create(
                 this,
                 AdType.BANNER,
                 AdConfig.BannerConfig(
@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
                 )
             ),
 
-            AdType.INTERSTITIAL to AdFactory.create(
+            AdType.INTERSTITIAL to AdManagerFactory.create(
                 this,
                 AdType.INTERSTITIAL,
                 AdConfig.InterstitialConfig(
@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
                 )
             ),
 
-            AdType.NATIVE to AdFactory.create(
+            AdType.NATIVE to AdManagerFactory.create(
                 this,
                 AdType.NATIVE,
                 AdConfig.NativeConfig(
@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
                 )
             ),
 
-            AdType.REWARDED to AdFactory.create(
+            AdType.REWARDED to AdManagerFactory.create(
                 this,
                 AdType.REWARDED,
                 AdConfig.RewardedConfig(
@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
                 )
             ),
 
-            AdType.APP_OPEN to AdFactory.create(
+            AdType.APP_OPEN to AdManagerFactory.create(
                 this,
                 AdType.APP_OPEN,
                 AdConfig.AppOpenConfig(
@@ -97,8 +97,8 @@ class MainActivity : AppCompatActivity() {
         // Handle reward logic
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onStart() {
+        super.onStart()
         adManagers[AdType.APP_OPEN]?.show()
     }
 
